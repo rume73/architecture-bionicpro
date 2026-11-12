@@ -1,0 +1,4 @@
+psycopg2-binary
+clickhouse-connect
+pandas
+apache-airflow-providers-postgres
