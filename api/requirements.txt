@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+clickhouse-connect
+pyjwt[crypto]
+requests
