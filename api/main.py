@@ -26,6 +26,9 @@ CH_PASS = os.getenv("CLICKHOUSE_PASSWORD", "clickhouse")
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "reports-realm")
 
+jwks_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
+jwks_client = jwt.PyJWKClient(jwks_url)
+
 
 def get_ch_client():
     return clickhouse_connect.get_client(
@@ -33,50 +36,26 @@ def get_ch_client():
     )
 
 
-_jwks_cache = {}
-
-
-def get_keycloak_public_key():
-    if "key" in _jwks_cache:
-        return _jwks_cache["key"]
-
-    url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        jwks = response.json()
-        key_data = jwks["keys"][0]
-
-        from jwt.algorithms import RSAAlgorithm
-        public_key = RSAAlgorithm.from_jwk(key_data)
-        _jwks_cache["key"] = public_key
-        return public_key
-    except Exception as e:
-        print(f"Error fetching JWKS: {e}")
-        return None
-
-
 def verify_token(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid token")
 
     token = authorization.split(" ")[1]
-    public_key = get_keycloak_public_key()
-
-    if not public_key:
-        raise HTTPException(status_code=500, detail="Cannot validate token signature")
 
     try:
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+
         payload = jwt.decode(
             token,
-            public_key,
+            signing_key.key,
             algorithms=["RS256"],
-            audience="account",
             options={"verify_aud": False}
         )
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.PyJWKClientError as e:
+        raise HTTPException(status_code=401, detail=f"Signing key error: {e}")
     except jwt.InvalidTokenError as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
 

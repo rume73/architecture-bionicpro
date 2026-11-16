@@ -81,20 +81,24 @@ services:
       - dag_sample
 
   airflow-init:
-      build:
-        context: ./airflow
-        dockerfile: Dockerfile
-      depends_on:
-        - airflow_db
-      environment:
-        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow_db/airflow
-        AIRFLOW__CORE__EXECUTOR: LocalExecutor
-        AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-        AIRFLOW__WEBSERVER__SECRET_KEY: '0a7d7443fc93ea315def4df9579a3c82'
-      command: >
-        bash -c "airflow db init && airflow users create --username admin --firstname admin --lastname admin --role Admin --email admin@example.com --password admin"
-      networks:
-        - dag_sample
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    depends_on:
+      - airflow_db
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow_db/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__SECRET_KEY: '0a7d7443fc93ea315def4df9579a3c82'
+    command: >
+      bash -c "
+      airflow db init &&
+      airflow users create --username admin --firstname admin --lastname admin --role Admin --email admin@example.com --password admin &&
+      airflow connections add 'bionic_postgres' --conn-type 'postgres' --conn-host 'keycloak_db' --conn-schema 'bionic_data' --conn-login 'keycloak_user' --conn-password 'keycloak_password' --conn-port 5432
+      "
+    networks:
+      - dag_sample
 
   airflow-webserver:
       build:
